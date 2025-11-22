@@ -100,9 +100,9 @@
 
 *   **Диаграммы (C1, C2)**
     Визуализация потоков данных между Rate Service и кол-центрами.
-    👉 **[Открыть C1](./Task4/C1_Context_CallCenter_Integration.png)**  
+    👉 **[Открыть C1](./Task4/C1_Context_CallCenter_Integration.png)**
     *(Исходный код: [C1_Context_CallCenter_Integration.puml](./Task4/C1_Context_CallCenter_Integration.puml))*  
-    👉 **[Открыть C2](./Task4/C2_Container_CallCenter_Integration.png)**  
+    👉 **[Открыть C2](./Task4/C2_Container_CallCenter_Integration.png)**
     *(Исходный код: [C2_Container_CallCenter_Integration.puml](./Task4/C2_Container_CallCenter_Integration.puml))*  
 
 *   **RoadMap реализации (Gantt Chart)**
