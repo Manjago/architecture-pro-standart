@@ -1,0 +1,70 @@
+@startuml C2_Container_CallCenter_Integration
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Диаграмма контейнеров (C2) для интеграции кол-центров с системой ставок
+
+' --- АКТОРЫ ---
+Person(cc_operator, "Оператор КЦ банка", "Консультирует клиентов")
+Person(partner_cc_operator, "Оператор партнёрского КЦ", "Консультирует клиентов")
+Person(back_office, "Сотрудник бэк-офиса", "Управляет ставками")
+
+' --- СИСТЕМА УПРАВЛЕНИЯ СТАВКАМИ ---
+System_Boundary(rate_system, "Система управления ставками") {
+    Container(rate_service, "Rate Management Service", "Java Spring Boot", "Управление ставками, расчёт персональных условий")
+    Container(rate_admin, "Rate Admin UI", "React", "Интерфейс для бэк-офиса")
+    Container(rate_export, "Rate Export Service", "Java Spring Boot", "Экспорт ставок в файлы для партнёра")
+    ContainerDb(rate_db, "Rate Database", "PostgreSQL", "Хранение ставок, история изменений")
+}
+
+' --- СИСТЕМА КОЛ-ЦЕНТРА БАНКА ---
+System_Boundary(cc_system, "Система кол-центра банка") {
+    Container(cc_ui, "Call Center UI", "React.js", "Интерфейс оператора с данными о клиентах")
+    Container(cc_backend, "Call Center Backend", "Java Spring Boot", "Бизнес-логика CRM")
+    ContainerDb(cc_db, "Call Center DB", "PostgreSQL", "Обращения, история звонков")
+}
+
+' --- ПАРТНЁРСКИЙ КОЛ-ЦЕНТР ---
+System_Boundary(partner_cc, "Партнёрский кол-центр") {
+    System_Ext(partner_cc_system, "Partner CC System", "Внешняя CRM партнёра")
+    System_Ext(partner_sftp, "SFTP Server", "Файловое хранилище партнёра")
+}
+
+' --- ВЗАИМОДЕЙСТВИЯ БЭК-ОФИСА ---
+Rel(back_office, rate_admin, "Обновляет ставки", "HTTPS")
+Rel(rate_admin, rate_service, "Сохраняет изменения", "REST/JSON")
+
+' --- ВЗАИМОДЕЙСТВИЯ RATE SERVICE ---
+Rel(rate_service, rate_db, "Читает/пишет ставки", "JDBC")
+
+' --- ВЗАИМОДЕЙСТВИЯ КОЛ-ЦЕНТРА БАНКА ---
+Rel(cc_operator, cc_ui, "Работает с обращениями, видит ставки", "HTTPS")
+Rel(cc_ui, cc_backend, "Запрашивает данные", "REST/JSON")
+Rel(cc_backend, cc_db, "Читает/пишет обращения", "JDBC")
+Rel(cc_backend, rate_service, "Запрашивает актуальные ставки", "REST API")
+
+' --- ВЗАИМОДЕЙСТВИЯ ЭКСПОРТА ---
+Rel(rate_export, rate_db, "Читает актуальные ставки", "JDBC")
+Rel(rate_export, partner_sftp, "Выгружает CSV/Excel 2 раза в день", "SFTP")
+
+' --- ВЗАИМОДЕЙСТВИЯ ПАРТНЁРСКОГО КЦ ---
+Rel(partner_cc_operator, partner_cc_system, "Консультирует клиентов", "UI партнёра")
+Rel(partner_cc_system, partner_sftp, "Импортирует файлы со ставками", "SFTP")
+
+' --- ПРИМЕЧАНИЯ ---
+note right of rate_export
+  Scheduler: Cron
+  - 08:00 (перед открытием)
+  - 14:00 (после обеда)
+  
+  Формат: CSV или Excel
+  Содержит: все актуальные
+  ставки на текущий день
+end note
+
+note right of partner_sftp
+  Партнёр самостоятельно
+  импортирует файлы в
+  свою систему по расписанию
+end note
+
+@enduml
