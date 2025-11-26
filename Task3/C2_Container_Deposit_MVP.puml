@@ -1,0 +1,91 @@
+@startuml C2_Container_Deposit_MVP
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Диаграмма контейнеров (C2) для открытия депозитов онлайн (MVP)
+
+' --- АКТОРЫ ---
+Person(client, "Клиент", "Существующий клиент банка")
+Person(new_client, "Новый клиент", "Потенциальный клиент")
+Person(back_office, "Сотрудник бэк-офиса", "Обрабатывает заявки")
+Person(call_center, "Оператор кол-центра", "Консультирует клиентов")
+
+' --- САЙТ БАНКА ---
+System_Boundary(site, "Сайт банка") {
+    Container(site_web, "Веб-приложение сайта", "PHP/React.js", "Маркетинговая информация и форма подачи заявки")
+}
+
+' --- ИНТЕРНЕТ-БАНК (МОНОЛИТ + НОВЫЕ СЕРВИСЫ) ---
+System_Boundary(ib, "Интернет-банк") {
+    Container(ib_legacy, "Легаси монолит ИБ", "ASP.NET MVC 4.5", "Платежи, текущие счета (существующий функционал)")
+    Container(ib_web, "Веб-приложение ИБ (новое)", "React SPA", "Новый UI для работы с депозитами")
+    Container(api_gateway, "API Gateway", "Nginx/Kong", "Маршрутизация запросов, аутентификация")
+}
+
+' --- СИСТЕМА ДЕПОЗИТОВ (НОВАЯ) ---
+System_Boundary(deposit_system, "Система депозитов (микросервисы)") {
+    Container(deposit_service, "Deposit Service", "Java Spring Boot", "Прием заявок, расчет персональных ставок, управление статусами")
+    Container(deposit_admin, "Админка бэк-офиса", "React", "Web UI для обработки заявок сотрудниками")
+    Container(rate_service, "Rate Management Service", "Java Spring Boot", "Управление справочником ставок по депозитам")
+    ContainerDb(deposit_db, "Deposit Database", "PostgreSQL", "Заявки, ставки, история статусов")
+    Container(notification_service, "Notification Service", "Java Spring Boot", "Отправка SMS через внешний шлюз")
+}
+
+' --- АБС (LEGACY) ---
+System_Boundary(abs_system, "АБС (Core Banking)") {
+    Container(abs_desktop, "АБС Desktop Client", "Delphi", "Рабочее место сотрудников")
+    Container(abs_api, "АБС API Layer", "Java", "REST API для интеграций (новый)")
+    ContainerDb(abs_db, "АБС Database", "Oracle", "Счета, клиенты, депозиты, договоры")
+}
+
+' --- СИСТЕМА КОЛ-ЦЕНТРА ---
+System_Ext(cc_system, "Система кол-центра", "CRM подрядчика")
+
+' --- ВНЕШНИЕ СИСТЕМЫ ---
+System_Ext(sms_gateway, "SMS-шлюз", "Телеком-оператор")
+
+' --- ВЗАИМОДЕЙСТВИЯ КЛИЕНТОВ ---
+Rel(new_client, site_web, "Заполняет заявку (ФИО, телефон)", "HTTPS")
+Rel(client, ib_web, "Подает заявку на депозит", "HTTPS")
+Rel(client, ib_legacy, "Использует существующий функционал", "HTTPS")
+
+' --- ВЗАИМОДЕЙСТВИЯ САЙТА ---
+Rel(site_web, api_gateway, "Отправляет заявку", "REST/JSON, HTTPS")
+
+' --- ВЗАИМОДЕЙСТВИЯ ИНТЕРНЕТ-БАНКА ---
+Rel(ib_web, api_gateway, "Отправляет заявку, запрашивает ставки", "REST/JSON")
+Rel(ib_legacy, abs_db, "ПРЯМОЙ ДОСТУП К БД (legacy)", "JDBC")
+
+' --- ВЗАИМОДЕЙСТВИЯ API GATEWAY ---
+Rel(api_gateway, deposit_service, "Маршрутизирует запросы", "REST/JSON")
+Rel(api_gateway, rate_service, "Запрашивает ставки", "REST/JSON")
+Rel(api_gateway, abs_api, "Аутентификация, данные клиента", "REST/JSON")
+
+' --- ВЗАИМОДЕЙСТВИЯ DEPOSIT SERVICE ---
+Rel(deposit_service, deposit_db, "Сохраняет заявки", "JDBC")
+Rel(deposit_service, rate_service, "Запрашивает персональные ставки", "REST/JSON")
+Rel(deposit_service, abs_api, "Проверяет счета клиента, получает данные", "REST/JSON")
+Rel(deposit_service, notification_service, "Отправляет событие для SMS", "REST/JSON")
+
+' --- ВЗАИМОДЕЙСТВИЯ RATE SERVICE ---
+Rel(rate_service, deposit_db, "Читает/пишет ставки", "JDBC")
+Rel(rate_service, abs_api, "Получает данные для расчета персональных ставок", "REST/JSON")
+
+' --- ВЗАИМОДЕЙСТВИЯ NOTIFICATION SERVICE ---
+Rel(notification_service, sms_gateway, "Отправляет SMS", "REST API")
+Rel(notification_service, deposit_db, "Логирует уведомления", "JDBC")
+
+' --- ВЗАИМОДЕЙСТВИЯ БЭК-ОФИСА ---
+Rel(back_office, deposit_admin, "Просматривает заявки, меняет статусы", "HTTPS")
+Rel(deposit_admin, deposit_service, "Запрашивает заявки, обновляет статусы", "REST/JSON")
+Rel(back_office, abs_desktop, "Открывает депозит вручную (MVP)", "Desktop UI")
+
+' --- ВЗАИМОДЕЙСТВИЯ АБС ---
+Rel(abs_desktop, abs_db, "Работает с данными", "Oracle Client")
+Rel(abs_api, abs_db, "Читает данные", "JDBC, Read-Only")
+
+' --- ВЗАИМОДЕЙСТВИЯ КОЛ-ЦЕНТРА ---
+Rel(call_center, cc_system, "Работает с обращениями")
+Rel(cc_system, deposit_service, "Получает список заявок с сайта", "REST API")
+Rel(cc_system, rate_service, "Запрашивает актуальные ставки", "REST API")
+
+@enduml
