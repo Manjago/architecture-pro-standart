@@ -1,0 +1,36 @@
+@startuml C1_Context_CallCenter_Integration
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Диаграмма контекста (C1) для интеграции кол-центров с системой ставок
+
+' --- АКТОРЫ ---
+Person(client, "Клиент", "Звонит в кол-центр для консультации")
+Person(cc_operator, "Оператор кол-центра", "Консультирует по депозитам")
+Person(partner_cc_operator, "Оператор партнёрского КЦ", "Консультирует по скриптам")
+Person(back_office, "Сотрудник бэк-офиса", "Управляет ставками")
+
+' --- СИСТЕМЫ БАНКА ---
+System(rate_system, "Система управления ставками", "Единый источник правды о ставках по депозитам")
+System(cc_system, "Система кол-центра", "CRM банка для обработки обращений")
+
+' --- ВНЕШНИЕ СИСТЕМЫ ---
+System_Ext(partner_cc_system, "Система партнёрского КЦ", "Внешняя CRM партнёра")
+System_Ext(sftp_server, "SFTP сервер партнёра", "Файловое хранилище для обмена данными")
+
+' --- ВЗАИМОДЕЙСТВИЯ КЛИЕНТОВ ---
+Rel(client, cc_operator, "Звонит, спрашивает о депозитах", "Телефон")
+Rel(client, partner_cc_operator, "Звонит, спрашивает о депозитах", "Телефон")
+
+' --- ВЗАИМОДЕЙСТВИЯ ОПЕРАТОРОВ ---
+Rel(cc_operator, cc_system, "Просматривает актуальные ставки", "Web UI")
+Rel(partner_cc_operator, partner_cc_system, "Работает по скриптам, видит ставки", "UI партнёра")
+
+' --- ВЗАИМОДЕЙСТВИЯ БЭК-ОФИСА ---
+Rel(back_office, rate_system, "Обновляет ставки по депозитам", "Web UI")
+
+' --- ВЗАИМОДЕЙСТВИЯ СИСТЕМ ---
+Rel(cc_system, rate_system, "Запрашивает актуальные ставки", "REST API")
+Rel(rate_system, sftp_server, "Выгружает файлы со ставками 2 раза в день", "SFTP")
+Rel(partner_cc_system, sftp_server, "Импортирует файлы со ставками", "SFTP")
+
+@enduml

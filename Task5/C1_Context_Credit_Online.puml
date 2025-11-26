@@ -1,0 +1,49 @@
+@startuml C1_Context_Credit_Online
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Диаграмма контекста (C1) для онлайн заявок на кредит
+
+' --- АКТОРЫ ---
+Person(client, "Клиент банка", "Существующий клиент с предодобренным предложением")
+Person(new_client, "Новый клиент", "Потенциальный клиент с сайта")
+Person(credit_officer, "Сотрудник кредитования", "Обрабатывает заявки в Кредитном конвейере")
+Person(branch_employee, "Сотрудник отделения", "Работает с клиентами после одобрения")
+
+' --- СИСТЕМЫ БАНКА ---
+System(credit_gateway, "Credit Gateway Service", "Оркестрирует процесс кредитования, показывает предодобренные предложения")
+System(credit_conveyor, "Кредитный конвейер", "Camunda BPMS - обрабатывает заявки, принимает решения")
+System(scoring_system, "Система скоринга", "Python ML сервис - оценивает кредитные риски")
+System(ib, "Интернет-банк", "Онлайн-канал для клиентов")
+System(site, "Сайт банка", "Маркетинг и прием заявок")
+System(abs, "АБС", "Core Banking - данные клиентов, счета, история")
+
+' --- ВНЕШНИЕ СИСТЕМЫ ---
+System_Ext(credit_bureau, "Бюро кредитных историй", "Внешние данные о кредитной истории")
+System_Ext(telecom, "Телеком-оператор", "Отправка SMS-уведомлений")
+
+' --- ВЗАИМОДЕЙСТВИЯ КЛИЕНТОВ ---
+Rel(client, ib, "Видит предодобренное предложение, подает заявку", "HTTPS")
+Rel(new_client, site, "Подает заявку на кредит с паспортными данными", "HTTPS")
+
+' --- ВЗАИМОДЕЙСТВИЯ CREDIT GATEWAY ---
+Rel(ib, credit_gateway, "Запрашивает предодобренные предложения, отправляет заявки", "REST API")
+Rel(site, credit_gateway, "Отправляет заявки новых клиентов", "REST API")
+Rel(credit_gateway, credit_conveyor, "Отправляет заявку на обработку (real-time)", "REST API")
+Rel(credit_gateway, scoring_system, "Запрашивает скоринг для предодобрения", "REST API")
+Rel(credit_gateway, abs, "Получает данные клиента", "REST API")
+Rel(credit_gateway, telecom, "Отправляет SMS-уведомления о статусе", "REST API")
+
+' --- ВЗАИМОДЕЙСТВИЯ КРЕДИТНОГО КОНВЕЙЕРА ---
+Rel(credit_officer, credit_conveyor, "Обрабатывает заявки, принимает решения", "Web UI")
+Rel(credit_conveyor, scoring_system, "Запрашивает детальный скоринг", "REST API")
+Rel(credit_conveyor, abs, "Получает историю платежей, данные клиента", "REST API")
+Rel(credit_conveyor, credit_gateway, "Уведомляет об изменении статуса", "Webhook")
+
+' --- ВЗАИМОДЕЙСТВИЯ СКОРИНГА ---
+Rel(scoring_system, credit_bureau, "Запрашивает кредитную историю", "REST API")
+Rel(scoring_system, abs, "Получает данные клиента для скоринга", "REST API")
+
+' --- ВЗАИМОДЕЙСТВИЯ ОТДЕЛЕНИЯ ---
+Rel(branch_employee, abs, "Выдает одобренный кредит клиенту", "Desktop UI")
+
+@enduml

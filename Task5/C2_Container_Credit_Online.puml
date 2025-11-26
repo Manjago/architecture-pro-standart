@@ -1,0 +1,117 @@
+@startuml C2_Container_Credit_Online
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Диаграмма контейнеров (C2) для онлайн заявок на кредит
+
+' --- АКТОРЫ ---
+Person(client, "Клиент", "Видит предодобренные предложения")
+Person(new_client, "Новый клиент", "Подает заявку с сайта")
+Person(credit_officer, "Кредитный специалист", "Обрабатывает заявки")
+
+' --- ИНТЕРНЕТ-БАНК ---
+System_Boundary(ib, "Интернет-банк") {
+    Container(ib_web, "Web UI (новое)", "React SPA", "Показывает предодобренные предложения, форма заявки")
+    Container(api_gateway, "API Gateway", "Nginx/Kong", "Маршрутизация, аутентификация")
+}
+
+' --- САЙТ ---
+Container_Ext(site_web, "Сайт", "PHP/React", "Форма заявки для новых клиентов")
+
+' --- CREDIT GATEWAY SERVICE (НОВЫЙ) ---
+System_Boundary(credit_gateway, "Credit Gateway Service") {
+    Container(credit_api, "Credit API", "Java 21 Spring Boot", "REST API для заявок и предодобрений")
+    Container(preapproval_engine, "Pre-Approval Engine", "Java 21 Spring Boot", "Фоновый расчет предодобренных предложений")
+    Container(credit_admin, "Credit Admin UI", "React", "Мониторинг заявок (опционально)")
+    ContainerDb(credit_db, "Credit DB", "PostgreSQL", "Заявки, предодобрения, статусы")
+}
+
+' --- КРЕДИТНЫЙ КОНВЕЙЕР (ДОРАБОТАННЫЙ) ---
+System_Boundary(conveyor, "Кредитный конвейер") {
+    Container(conveyor_api, "Conveyor REST API", "Java (новый)", "Прием заявок через API")
+    Container(conveyor_engine, "Camunda Engine", "Camunda BPMN", "Бизнес-процессы кредитования")
+    Container(conveyor_ui, "Conveyor UI", "Web", "Рабочее место кредитных специалистов")
+    ContainerDb(conveyor_db, "Conveyor DB", "Oracle", "Заявки, процессы, решения")
+}
+
+' --- СИСТЕМА СКОРИНГА ---
+System_Boundary(scoring, "Система скоринга") {
+    Container(scoring_api, "Scoring API", "Python Flask", "REST API для скоринга")
+    Container(scoring_ml, "ML Engine", "Python scikit-learn", "Модели машинного обучения")
+    ContainerDb(scoring_db, "Scoring DB", "PostgreSQL", "Кэш скорингов, история")
+}
+
+' --- АБС ---
+System_Boundary(abs_sys, "АБС") {
+    Container(abs_api, "АБС API Layer", "Java 21", "REST API для интеграций")
+    ContainerDb(abs_db, "АБС Database", "Oracle", "Клиенты, счета, история платежей")
+}
+
+' --- ВНЕШНИЕ СИСТЕМЫ ---
+System_Ext(credit_bureau, "БКИ API", "Бюро кредитных историй")
+System_Ext(sms_gateway, "SMS Gateway", "Телеком-оператор")
+Container_Ext(notification_svc, "Notification Service", "Сервис SMS из Task 3")
+
+' --- ВЗАИМОДЕЙСТВИЯ КЛИЕНТОВ ---
+Rel(client, ib_web, "Просматривает предодобренные предложения", "HTTPS")
+Rel(client, ib_web, "Подает заявку на кредит", "HTTPS")
+Rel(new_client, site_web, "Заполняет заявку с паспортом", "HTTPS")
+
+' --- ВЗАИМОДЕЙСТВИЯ API GATEWAY ---
+Rel(ib_web, api_gateway, "Запрашивает данные", "REST/JSON")
+Rel(site_web, api_gateway, "Отправляет заявку", "REST/JSON")
+Rel(api_gateway, credit_api, "Маршрутизирует запросы", "REST/JSON")
+
+' --- ВЗАИМОДЕЙСТВИЯ CREDIT API ---
+Rel(credit_api, credit_db, "Сохраняет заявки, читает предодобрения", "JDBC")
+Rel(credit_api, conveyor_api, "Отправляет заявку на обработку", "REST/JSON")
+Rel(credit_api, scoring_api, "Запрашивает быстрый скоринг (для новых клиентов)", "REST/JSON")
+Rel(credit_api, abs_api, "Проверяет данные клиента", "REST/JSON")
+Rel(credit_api, notification_svc, "Отправляет SMS о статусе", "REST/JSON")
+
+' --- ВЗАИМОДЕЙСТВИЯ PRE-APPROVAL ENGINE ---
+Rel(preapproval_engine, credit_db, "Сохраняет предодобрения", "JDBC")
+Rel(preapproval_engine, scoring_api, "Запрашивает скоринг для активных клиентов", "REST/JSON")
+Rel(preapproval_engine, abs_api, "Получает список активных клиентов", "REST/JSON")
+
+' --- ВЗАИМОДЕЙСТВИЯ CONVEYOR ---
+Rel(credit_officer, conveyor_ui, "Обрабатывает заявки", "HTTPS")
+Rel(conveyor_ui, conveyor_engine, "Управляет процессами", "Java API")
+Rel(conveyor_api, conveyor_engine, "Создает новый процесс", "Java API")
+Rel(conveyor_engine, conveyor_db, "Сохраняет состояние процесса", "JDBC")
+Rel(conveyor_engine, scoring_api, "Запрашивает детальный скоринг", "REST/JSON")
+Rel(conveyor_engine, abs_api, "Получает историю платежей", "REST/JSON")
+Rel(conveyor_engine, credit_api, "Уведомляет об изменении статуса", "Webhook")
+
+' --- ВЗАИМОДЕЙСТВИЯ SCORING ---
+Rel(scoring_api, scoring_ml, "Вызывает ML модель", "Python")
+Rel(scoring_api, scoring_db, "Кэширует результаты", "JDBC")
+Rel(scoring_api, credit_bureau, "Запрашивает БКИ", "REST API")
+Rel(scoring_api, abs_api, "Получает данные клиента", "REST/JSON")
+
+' --- ВЗАИМОДЕЙСТВИЯ АБС ---
+Rel(abs_api, abs_db, "Читает данные", "JDBC Read-Only")
+
+' --- ВЗАИМОДЕЙСТВИЯ NOTIFICATION ---
+Rel(notification_svc, sms_gateway, "Отправляет SMS", "REST API")
+
+' --- ПРИМЕЧАНИЯ ---
+note right of preapproval_engine
+  Scheduler: Cron (ночью)
+  
+  Логика:
+  1. Выбирает активных клиентов
+  2. Для каждого запрашивает скоринг
+  3. Рассчитывает макс. сумму кредита
+  4. Сохраняет в credit_db
+  5. TTL = 30 дней
+end note
+
+note right of conveyor_api
+  Новый REST API endpoint:
+  POST /api/applications
+  
+  Заменяет batch из АБС
+  раз в день на real-time
+end note
+
+@enduml
